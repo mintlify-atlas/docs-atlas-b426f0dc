@@ -1,0 +1,123 @@
+---
+title: "split_mesh / split_mesh_complete"
+description: "Insert new vertices along mesh edges at specified positions, splitting faces accordingly."
+---
+
+## Functions
+
+```python
+split_mesh(V, F, edges, ratios)
+split_mesh_complete(V, F, edges, ratios)
+```
+
+Both functions split mesh edges at given parametric positions, inserting new vertices and retriangulating the affected faces. `split_mesh_complete` additionally handles the case where consecutive new vertices share a face by adding a diagonal edge to maintain a valid triangulation.
+
+---
+
+## `split_mesh`
+
+```python
+mesh, index = split_mesh(V, F, edges, ratios)
+```
+
+Splits each specified edge once, inserting a new vertex at position `p0 * (1 - r) + p1 * r`.
+
+### Parameters
+
+<ParamField path="V" type="numpy.array" required>
+  Vertex coordinate array of shape `(n, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.array" required>
+  Face index array of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="edges" type="numpy.array" required>
+  Array of shape `(k, 2)`. Each row `[i, j]` specifies a mesh edge by its two endpoint vertex indices. If `i == j`, the edge is treated as a point and the existing vertex is reused.
+</ParamField>
+
+<ParamField path="ratios" type="numpy.array" required>
+  Array of shape `(k,)`. The new vertex on edge `[i, j]` is placed at `V[i] * (1 - r) + V[j] * r`.
+</ParamField>
+
+### Return value
+
+<ResponseField name="mesh" type="openmesh.TriMesh">
+  The modified mesh with new vertices and retriangulated faces.
+</ResponseField>
+
+<ResponseField name="index" type="list[int]">
+  New vertex indices in the mesh corresponding to each row of `edges`. Use these to identify the inserted vertices.
+</ResponseField>
+
+---
+
+## `split_mesh_complete`
+
+```python
+mesh, index = split_mesh_complete(V, F, edges, ratios)
+```
+
+Like `split_mesh`, but handles consecutive edge pairs that share a face. When two consecutive new vertices land in the same face (meaning no existing edge connects them), a diagonal is inserted to split that face, ensuring the resulting mesh is a valid triangulation.
+
+### Parameters
+
+<ParamField path="V" type="numpy.array" required>
+  Vertex coordinate array of shape `(n, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.array" required>
+  Face index array of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="edges" type="numpy.array" required>
+  Array of shape `(k, 2)` giving edge endpoints in the order of the intended curve. Consecutive rows should define adjacent edges along the curve path.
+</ParamField>
+
+<ParamField path="ratios" type="numpy.array" required>
+  Array of shape `(k,)`. Ratios must correspond row-by-row with `edges`. New vertex position: `V[e0] * (1 - r) + V[e1] * r`.
+</ParamField>
+
+### Return value
+
+<ResponseField name="mesh" type="openmesh.TriMesh">
+  The modified triangulated mesh.
+</ResponseField>
+
+<ResponseField name="index" type="numpy.array">
+  Array of shape `(k,)` with new vertex indices for each inserted point.
+</ResponseField>
+
+---
+
+## Example
+
+```python
+import numpy as np
+import meshutility as mu
+import openmesh as om
+
+input_mesh = om.read_trimesh("plane.obj")
+V = input_mesh.points()
+F = input_mesh.face_vertex_indices()
+
+# Define two edges to split
+edges = np.array([
+    [0, 1],   # split edge between vertex 0 and 1
+    [1, 4],   # split edge between vertex 1 and 4
+])
+
+# Place new vertex at midpoints
+ratios = np.array([0.5, 0.5])
+
+mesh, new_verts = mu.split_mesh(V, F, edges, ratios)
+print("Inserted vertex indices:", new_verts)
+
+# For a connected curve, use split_mesh_complete to handle shared faces
+mesh2, new_verts2 = mu.split_mesh_complete(V, F, edges, ratios)
+print("Inserted vertex indices (complete):", new_verts2)
+```
+
+<Note>
+  `split_mesh_complete` normalizes edge direction internally (ensuring `e[0] <= e[1]`) so the same edge can be split multiple times along a curve without conflicts. Ratios are adjusted accordingly when direction is reversed.
+</Note>

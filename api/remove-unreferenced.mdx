@@ -1,0 +1,77 @@
+---
+title: "remove_unreferenced_vertices"
+description: "Remove vertices not referenced by any face and return compact vertex and face arrays."
+---
+
+## Function signature
+
+```python
+V, F, idx = remove_unreferenced_vertices(V, F)
+```
+
+Removes vertices from `V` that are not referenced by any face in `F`, renumbers the remaining vertices contiguously, and updates `F` accordingly.
+
+## Parameters
+
+<ParamField path="V" type="numpy.array" required>
+  Vertex coordinate array of shape `(n, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.array" required>
+  Face index array of shape `(m, k)`. May contain `-1` as a sentinel value; entries of `-1` are always treated as referenced and are preserved as-is in the output.
+</ParamField>
+
+## Return value
+
+<ResponseField name="V" type="numpy.array">
+  Compacted vertex array containing only the referenced vertices.
+</ResponseField>
+
+<ResponseField name="F" type="numpy.array">
+  Updated face array with indices remapped to match the new vertex ordering.
+</ResponseField>
+
+<ResponseField name="idx" type="numpy.array">
+  Index mapping array of shape `(n,)`, dtype `int32`. For each original vertex index `i`:
+  - `idx[i]` is the new index of vertex `i` in the compacted array if it was referenced.
+  - `idx[i] == -1` if vertex `i` was unreferenced and has been removed.
+</ResponseField>
+
+## Example
+
+```python
+import numpy as np
+import meshutility as mu
+
+# A mesh with 5 vertices but only 3 used
+V = np.array([
+    [0.0, 0.0, 0.0],  # 0 - used
+    [1.0, 0.0, 0.0],  # 1 - used
+    [0.0, 1.0, 0.0],  # 2 - used
+    [5.0, 5.0, 5.0],  # 3 - unused
+    [9.0, 9.0, 9.0],  # 4 - unused
+])
+F = np.array([[0, 1, 2]])
+
+V_clean, F_clean, idx = mu.remove_unreferenced_vertices(V, F)
+
+print("Original vertices:", V.shape[0])       # 5
+print("Remaining vertices:", V_clean.shape[0]) # 3
+print("Index mapping:", idx)
+# idx = [0, 1, 2, -1, -1]
+```
+
+Look up where an original vertex ended up:
+
+```python
+original_index = 2
+new_index = idx[original_index]
+if new_index == -1:
+    print(f"Vertex {original_index} was removed")
+else:
+    print(f"Vertex {original_index} is now at index {new_index}")
+```
+
+<Note>
+  Face entries of `-1` are preserved unchanged in the output. The implementation allocates a padded array of size `n + 1` internally so that `-1` indexing maps to the padding slot and is never mistaken for a valid vertex.
+</Note>

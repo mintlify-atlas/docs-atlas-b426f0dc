@@ -1,0 +1,81 @@
+---
+title: "Building from source"
+description: "How to clone, build, and install MeshUtility from source, including its C++ extensions."
+---
+
+## When to build from source
+
+Building from source is necessary when you want to:
+
+- Modify or extend the C++ extensions (`pygeodesic`, `pyisocurve`, `pyremesh`, `pyshapeop`)
+- Use the latest unreleased code from the repository
+- Build for a platform not covered by the published wheels
+
+<Note>
+  For most users, installing via pip is sufficient and does not require building
+  from source.
+</Note>
+
+## Build requirements
+
+The C++ extensions are compiled via CMake, invoked automatically through setuptools during `python setup.py install`. You need:
+
+- **CMake >= 3.12** — used to build the C++ extensions
+- **A C++14-capable compiler** — GCC, Clang, or MSVC
+- **Python >= 3.6**
+
+On non-MSVC platforms, the build will automatically use **Ninja** if it is available (installed as part of the build dependencies), enabling faster parallel compilation.
+
+## Steps
+
+<Steps>
+  <Step title="Install Python dependencies">
+    Install the required Python packages with pip:
+
+    ```bash
+    pip install numpy scipy networkx matplotlib openmesh
+    ```
+
+    If you use Jupyter notebooks and want 3D mesh visualization, also install `meshplot` via conda:
+
+    ```bash
+    conda install -c conda-forge meshplot
+    ```
+
+    <Tip>
+      `meshplot` is optional and only needed for interactive visualization
+      inside Jupyter notebooks.
+    </Tip>
+  </Step>
+
+  <Step title="Clone the repository with submodules">
+    The C++ dependencies (Eigen, libigl, pybind11, ShapeOp, geodesic) are bundled as git submodules. Use `--recurse-submodules` to fetch them in one step:
+
+    ```bash
+    git clone --recurse-submodules https://github.com/zishun/MeshUtility.git
+    ```
+
+    If you already cloned without submodules, initialize them with:
+
+    ```bash
+    git submodule update --init --recursive
+    ```
+  </Step>
+
+  <Step title="Build and install">
+    From the repository root, run:
+
+    ```bash
+    python setup.py install
+    ```
+
+    This invokes CMake to compile the C++ extensions (`pygeodesic`, `pyisocurve`, `pyremesh`, `pyshapeop`) and then installs the `meshutility` package into your Python environment.
+  </Step>
+</Steps>
+
+<Note>
+  The build system (`setuptools`, `cmake`, `ninja`, `wheel`) is declared in
+  `pyproject.toml` and will be fetched automatically by pip-compatible build
+  frontends. If you call `python setup.py install` directly, ensure these tools
+  are already available in your environment.
+</Note>

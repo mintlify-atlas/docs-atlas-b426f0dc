@@ -1,0 +1,101 @@
+---
+title: "write_obj_lines / read_obj_lines"
+description: "Write and read polylines (curves) as line elements in Wavefront .obj files."
+---
+
+## Functions
+
+```python
+write_obj_lines(fn, verts, lines)
+read_obj_lines(fn)
+```
+
+These functions handle Wavefront `.obj` files that contain line (`l`) elements rather than face (`f`) elements. They are useful for storing isocurves, cut curves, or any other polyline geometry.
+
+---
+
+## `write_obj_lines`
+
+```python
+write_obj_lines(fn, verts, lines)
+```
+
+Writes a set of polylines to an `.obj` file. Each consecutive pair of vertices in a curve is written as a separate `l` line entry, which ensures the file opens correctly in MeshLab.
+
+### Parameters
+
+<ParamField path="fn" type="str" required>
+  Output file path. Should have a `.obj` extension.
+</ParamField>
+
+<ParamField path="verts" type="numpy.array" required>
+  Vertex coordinate array of shape `(n, 3)`. Vertex indices in `lines` reference into this array (0-based).
+</ParamField>
+
+<ParamField path="lines" type="list[numpy.array]" required>
+  List of curves. Each curve is a 1D array (or list) of 0-based vertex indices specifying the ordered vertices of that polyline. A curve with `k` indices produces `k - 1` line segments.
+</ParamField>
+
+### Return value
+
+<ResponseField name="" type="None">
+  Writes to disk and returns nothing.
+</ResponseField>
+
+---
+
+## `read_obj_lines`
+
+```python
+verts, segs = read_obj_lines(fn)
+```
+
+Reads vertex positions and line segments from an `.obj` file.
+
+### Parameters
+
+<ParamField path="fn" type="str" required>
+  Path to an `.obj` file containing `v` and `l` entries.
+</ParamField>
+
+### Return value
+
+<ResponseField name="verts" type="numpy.array">
+  Vertex coordinate array of shape `(n, 3)`.
+</ResponseField>
+
+<ResponseField name="segs" type="numpy.array">
+  Edge segment array of shape `(m, 2)`, dtype `int`. Each row is a pair of 0-based vertex indices forming one segment. Indices are converted from the 1-based `.obj` format automatically.
+</ResponseField>
+
+---
+
+## Example
+
+```python
+import numpy as np
+import meshutility as mu
+
+# --- Write ---
+verts = np.array([
+    [0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0],
+    [1.0, 1.0, 0.0],
+    [0.0, 1.0, 0.0],
+])
+
+# Two separate curves
+curve0 = np.array([0, 1, 2])
+curve1 = np.array([2, 3, 0])
+
+mu.write_obj_lines("curves.obj", verts, [curve0, curve1])
+
+# --- Read ---
+v, segs = mu.read_obj_lines("curves.obj")
+print("Vertices:", v.shape)   # (4, 3)
+print("Segments:", segs)      # [[0,1],[1,2],[2,3],[3,0]]
+```
+
+<Note>
+  Each segment is written as an individual `l` line in the `.obj` file (e.g., `l 1 2`), not as a multi-vertex polyline (e.g., `l 1 2 3`). This format is required for correct display in MeshLab.
+</Note>

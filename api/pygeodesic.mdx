@@ -1,0 +1,250 @@
+---
+title: "pygeodesic"
+description: "C++ module for geodesic distance computation on triangular meshes, using the MMP exact geodesic algorithm and fast marching."
+---
+
+The `pygeodesic` module is a C++ extension that provides exact and approximate geodesic distance computations on triangular meshes. It wraps Danil Kirsanov's MMP (Mitchell–Mount–Papadimitriou) implementation for exact geodesics, and a fast marching method for approximate geodesics.
+
+```python
+import meshutility as mu
+
+# Access functions as mu.pygeodesic.<function_name>(...)
+distances = mu.pygeodesic.distance_field(V, F, source_indices)
+```
+
+<Note>
+  The pybind11 binding spells the third positional argument `source_indieces` (a typo). You can pass it as a positional argument or use the correct keyword shown in each function signature below.
+</Note>
+
+---
+
+## `pygeodesic.find_path`
+
+Find the shortest geodesic path between two vertices on the mesh. Returns the path as a sequence of edge crossings.
+
+```python
+path_edge, path_ratio = mu.pygeodesic.find_path(V, F, src, dst)
+```
+
+### Parameters
+
+<ParamField path="V" type="numpy.ndarray" required>
+  Vertex coordinate matrix of shape `(m, 3)`. Each row is a 3D point.
+</ParamField>
+
+<ParamField path="F" type="numpy.ndarray" required>
+  Face index matrix of shape `(n, 3)`. Each row contains three 0-based vertex indices defining a triangle.
+</ParamField>
+
+<ParamField path="src" type="int" required>
+  Index of the source vertex (0-based).
+</ParamField>
+
+<ParamField path="dst" type="int" required>
+  Index of the destination vertex (0-based).
+</ParamField>
+
+### Returns
+
+<ResponseField name="path_edge" type="numpy.ndarray">
+  Integer array of shape `(k, 2)`. Each row `[i, j]` is a pair of vertex indices identifying an edge that the geodesic path crosses.
+</ResponseField>
+
+<ResponseField name="path_ratio" type="numpy.ndarray">
+  Float array of shape `(k,)`. Each entry is the interpolation ratio along the corresponding edge in `path_edge`, in the range `[0, 1]`. The crossing point on edge `[i, j]` is `(1 - t) * V[i] + t * V[j]` where `t` is the ratio.
+</ResponseField>
+
+### Example
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Find geodesic path from vertex 0 to vertex 100
+path_edge, path_ratio = mu.pygeodesic.find_path(V, F, 0, 100)
+
+# Reconstruct 3D path points from edge crossings
+path_pts = (1 - path_ratio[:, None]) * V[path_edge[:, 0]] + \
+            path_ratio[:, None]       * V[path_edge[:, 1]]
+```
+
+---
+
+## `pygeodesic.distance_field`
+
+Compute the exact geodesic distance from a set of source vertices to all other vertices using the MMP algorithm.
+
+```python
+D = mu.pygeodesic.distance_field(V, F, source_indices,
+                                  edge_split=-1.0,
+                                  max_propagation_distance=-1.0)
+```
+
+<Note>
+  This function uses Danil Kirsanov's exact geodesic implementation based on the MMP algorithm. Results are numerically exact up to floating-point precision.
+</Note>
+
+### Parameters
+
+<ParamField path="V" type="numpy.ndarray" required>
+  Vertex coordinate matrix of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.ndarray" required>
+  Face index matrix of shape `(n, 3)` with 0-based indices.
+</ParamField>
+
+<ParamField path="source_indices" type="numpy.ndarray" required>
+  1D integer array of shape `(k,)` containing the 0-based indices of source vertices. The distance field is measured from the nearest source.
+</ParamField>
+
+<ParamField path="edge_split" type="float" default="-1.0">
+  Controls edge subdivision for sources placed on edges rather than vertices. A value of `-1.0` uses automatic selection.
+</ParamField>
+
+<ParamField path="max_propagation_distance" type="float" default="-1.0">
+  Stop propagation once the wavefront exceeds this distance. A value of `-1.0` propagates to all reachable vertices. Vertices beyond the limit receive a large sentinel value.
+</ParamField>
+
+### Returns
+
+<ResponseField name="D" type="numpy.ndarray">
+  Float array of shape `(m,)`. `D[i]` is the exact geodesic distance from vertex `i` to the nearest source vertex.
+</ResponseField>
+
+### Example
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Single source at vertex 0
+source_indices = np.array([0], dtype=np.int32)
+D = mu.pygeodesic.distance_field(V, F, source_indices)
+
+# Multiple sources
+source_indices = np.array([0, 50, 100], dtype=np.int32)
+D = mu.pygeodesic.distance_field(V, F, source_indices,
+                                  max_propagation_distance=1.5)
+```
+
+---
+
+## `pygeodesic.fast_marching`
+
+Compute an approximate geodesic distance field using the fast marching method. Faster than `distance_field` but less accurate, especially on coarse meshes.
+
+```python
+D = mu.pygeodesic.fast_marching(V, F, source_indices,
+                                 max_propagation_distance=-1.0)
+```
+
+### Parameters
+
+<ParamField path="V" type="numpy.ndarray" required>
+  Vertex coordinate matrix of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.ndarray" required>
+  Face index matrix of shape `(n, 3)` with 0-based indices.
+</ParamField>
+
+<ParamField path="source_indices" type="numpy.ndarray" required>
+  1D integer array of source vertex indices (0-based).
+</ParamField>
+
+<ParamField path="max_propagation_distance" type="float" default="-1.0">
+  Stop propagation beyond this distance. A value of `-1.0` propagates everywhere.
+</ParamField>
+
+### Returns
+
+<ResponseField name="D" type="numpy.ndarray">
+  Float array of shape `(m,)` with approximate geodesic distances from each vertex to the nearest source.
+</ResponseField>
+
+### Example
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+source_indices = np.array([0], dtype=np.int32)
+D = mu.pygeodesic.fast_marching(V, F, source_indices)
+```
+
+---
+
+## `pygeodesic.fast_marching_speed`
+
+Compute an approximate geodesic distance field using fast marching with a per-face speed function. Useful for anisotropic or weighted distance transforms where propagation speed varies across the mesh.
+
+```python
+D = mu.pygeodesic.fast_marching_speed(V, F, source_indices,
+                                       gradient_magnitudes,
+                                       max_propagation_distance=-1.0)
+```
+
+### Parameters
+
+<ParamField path="V" type="numpy.ndarray" required>
+  Vertex coordinate matrix of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.ndarray" required>
+  Face index matrix of shape `(n, 3)` with 0-based indices.
+</ParamField>
+
+<ParamField path="source_indices" type="numpy.ndarray" required>
+  1D integer array of source vertex indices (0-based).
+</ParamField>
+
+<ParamField path="gradient_magnitudes" type="numpy.ndarray" required>
+  Float array of shape `(n,)` — one speed value per face. Higher values allow faster propagation through that face.
+</ParamField>
+
+<ParamField path="max_propagation_distance" type="float" default="-1.0">
+  Stop propagation beyond this distance. A value of `-1.0` propagates everywhere.
+</ParamField>
+
+### Returns
+
+<ResponseField name="D" type="numpy.ndarray">
+  Float array of shape `(m,)` with distance values that account for the per-face speed field.
+</ResponseField>
+
+### Example
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Uniform speed field (equivalent to fast_marching)
+speed = np.ones(F.shape[0], dtype=np.float64)
+source_indices = np.array([0], dtype=np.int32)
+D = mu.pygeodesic.fast_marching_speed(V, F, source_indices, speed)
+
+# Non-uniform speed: slow down propagation over certain faces
+speed[F.shape[0] // 2 :] = 0.1
+D_weighted = mu.pygeodesic.fast_marching_speed(V, F, source_indices, speed)
+```

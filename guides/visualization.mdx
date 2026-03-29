@@ -1,0 +1,158 @@
+---
+title: "Visualization"
+description: "Export color-mapped meshes and polyline curves for viewing in MeshLab, Blender, and other tools."
+---
+
+MeshUtility provides two lightweight export helpers: one for coloring a mesh by a scalar field and one for writing polyline curves. Both produce standard formats readable by common 3-D viewers.
+
+## Coloring a mesh by a scalar field
+
+`colormap_vertex_color` maps a per-vertex scalar field to RGB colors using a matplotlib colormap, then writes the result as an OFF file with vertex colors embedded.
+
+```python
+mu.colormap_vertex_color(fn, v0, f0, scalar_field,
+                          scalar_min=None, scalar_max=None,
+                          cmap='jet')
+```
+
+**Parameters**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `fn` | `str` | — | Output file path. Must end in `.off`. |
+| `v0` | `(n, 3) float` | — | Vertex positions |
+| `f0` | `(m, 3) int` | — | Face indices |
+| `scalar_field` | `(n,) float` | — | Per-vertex scalar values |
+| `scalar_min` | `float` or `None` | `None` | Lower clamp. `None` uses the field minimum. |
+| `scalar_max` | `float` or `None` | `None` | Upper clamp. `None` uses the field maximum. |
+| `cmap` | `str` | `'jet'` | Any matplotlib colormap name, e.g. `'viridis'`, `'plasma'`, `'coolwarm'`. |
+
+The field is first clipped to `[scalar_min, scalar_max]` (when provided), then linearly normalized to `[0, 1]`, and finally passed through the chosen colormap. The resulting RGB values are written as vertex colors in the OFF file.
+
+```python
+import numpy as np
+import openmesh as om
+import meshutility as mu
+
+mesh = om.read_trimesh("bunny.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+source = np.array([0])
+D = mu.pygeodesic.distance_field(V, F, source)
+
+mu.colormap_vertex_color("distance.off", V, F, D, cmap='viridis')
+```
+
+Open `distance.off` in MeshLab with **File → Import Mesh** and the color will appear immediately. Blender also imports OFF files via the Extra Objects add-on.
+
+<Tip>
+Use `scalar_min` and `scalar_max` to focus the color range. For example, if you have a distance field ranging from 0 to 2 but only care about values below 0.5:
+
+```python
+mu.colormap_vertex_color("close.off", V, F, D, scalar_min=0.0, scalar_max=0.5)
+```
+
+Vertices with values above 0.5 will be clamped to the top color of the colormap.
+</Tip>
+
+## Writing polyline curves
+
+`write_obj_lines` writes a set of polyline curves to an OBJ file using `v` (vertex) and `l` (line) records. Each curve segment is written as a separate `l` line so that MeshLab displays the curves correctly.
+
+```python
+mu.write_obj_lines(fn, verts, lines)
+```
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `fn` | `str` | Output file path (`.obj`) |
+| `verts` | `(n, 3) float` | Vertex coordinates |
+| `lines` | `list of array-like` | Each element is an ordered list of 0-based vertex indices forming one polyline |
+
+Vertex indices in the OBJ file are 1-based; the function handles the conversion automatically.
+
+```python
+import numpy as np
+import meshutility as mu
+
+# Three points forming two segments
+verts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0]], dtype=float)
+lines = [[0, 1, 2]]  # one polyline through all three points
+
+mu.write_obj_lines("curve.obj", verts, lines)
+```
+
+## Reading polyline curves
+
+`read_obj_lines` reads an OBJ file written by `write_obj_lines` (or any OBJ with `l` records) and returns the vertices and edge segments.
+
+```python
+verts, segs = mu.read_obj_lines(fn)
+```
+
+- `verts` — `(n, 3) float` array of vertex coordinates.
+- `segs` — `(m, 2) int` array of edge segments. Each row is a pair of 0-based vertex indices.
+
+<Note>
+`read_obj_lines` returns individual edge segments (`m x 2`), not polylines. If you need to reconstruct polyline order, use NetworkX or a similar graph library to chain the segments.
+</Note>
+
+## End-to-end workflow
+
+The following example computes geodesic distances, colors the mesh, extracts isocurves, and exports everything:
+
+```python
+import numpy as np
+import openmesh as om
+import meshutility as mu
+from meshutility import IsoCurve
+
+# 1. Load mesh
+mesh = om.read_trimesh("bunny.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# 2. Compute geodesic distance field
+source = np.array([0])
+D = mu.pygeodesic.distance_field(V, F, source)
+
+# 3. Export color-mapped mesh
+mu.colormap_vertex_color(
+    "bunny_distance.off", V, F, D,
+    scalar_min=0.0, scalar_max=D.max(),
+    cmap='plasma'
+)
+
+# 4. Extract and export isocurves at 10 evenly spaced levels
+iso = IsoCurve(V, F, D)
+all_pts = []
+all_curves = []
+offset = 0
+
+for val in np.linspace(D.min(), D.max(), num=10):
+    pts, on_edge, ratio, curve_all = iso.extract(val)
+    if pts.shape[0] == 0:
+        continue
+    shifted = [[i + offset for i in c] for c in curve_all]
+    all_curves.extend(shifted)
+    all_pts.append(pts)
+    offset += pts.shape[0]
+
+if all_pts:
+    all_pts = np.concatenate(all_pts, axis=0)
+    mu.write_obj_lines("isocurves.obj", all_pts, all_curves)
+    print(f"Wrote {len(all_curves)} isocurves with {all_pts.shape[0]} points")
+```
+
+Open `bunny_distance.off` and `isocurves.obj` together in MeshLab (**File → Import Mesh** for each) to see the colored surface with the overlaid contour lines.
+
+<CardGroup cols={2}>
+  <Card title="Geodesic computation" icon="route" href="/guides/geodesic">
+    Generate distance fields to drive color maps.
+  </Card>
+  <Card title="Isocurve extraction" icon="chart-line" href="/guides/isocurves">
+    Extract contour lines to export as polylines.
+  </Card>
+</CardGroup>

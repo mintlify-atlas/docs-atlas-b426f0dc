@@ -1,0 +1,109 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "MeshUtility",
+  "projectDescription": "A Python library with C++ extensions for mesh processing, offering geodesic computation, isocurve extraction, remeshing, mesh cutting, and geometry utilities for triangular meshes.",
+  "theme": "luma",
+  "primaryColor": "#4F7BE8",
+  "lightColor": "#EEF2FC",
+  "darkColor": "#1A2A5E",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/geodesic",
+              "guides/isocurves",
+              "guides/remeshing",
+              "guides/mesh-operations",
+              "guides/visualization"
+            ]
+          },
+          {
+            "group": "Building from Source",
+            "pages": [
+              "building/overview",
+              "building/dependencies"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Python API",
+            "pages": [
+              "api/colormap-vertex-color",
+              "api/cut-along-curve",
+              "api/isocurve",
+              "api/mesh-graph",
+              "api/mesh-split",
+              "api/sphere-cvt",
+              "api/connected-components",
+              "api/obj-lines-io",
+              "api/remove-unreferenced",
+              "api/scalar-field"
+            ]
+          },
+          {
+            "group": "C++ Modules",
+            "pages": [
+              "api/pygeodesic",
+              "api/pyisocurve",
+              "api/pyremesh",
+              "api/pyshapeop"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Exact geodesic distance computation using MMP algorithm",
+    "Fast marching geodesic approximation with per-face speed control",
+    "Isocurve (isolines) extraction on scalar fields defined on triangular meshes",
+    "Incremental isotropic remeshing (C++ accelerated)",
+    "Mesh cutting along vertex chains",
+    "Mesh splitting by inserting new vertices on edges",
+    "Centroidal Voronoi Tessellation (CVT) on the unit sphere",
+    "Vertex colormap visualization of scalar fields",
+    "Face-face and vertex-vertex graph construction",
+    "Connected component splitting",
+    "Polyline reading/writing in Wavefront OBJ format",
+    "ShapeOp partial binding for shape deformation"
+  ],
+  "publicApiSurface": [
+    "colormap_vertex_color(fn, v0, f0, scalar_field, scalar_min, scalar_max, cmap)",
+    "cut_along_curve(V, F, curve_index, method)",
+    "IsoCurve(points, faces, field).extract(val, eqlTol)",
+    "ff_graph(mesh)",
+    "vv_graph(mesh)",
+    "split_mesh(V, F, edges, ratios)",
+    "split_mesh_complete(V, F, edges, ratios)",
+    "sphere_cvt(n, iters)",
+    "split_connected_components(V, F)",
+    "write_obj_lines(fn, verts, lines)",
+    "read_obj_lines(fn)",
+    "remove_unreferenced_vertices(V, F)",
+    "get_scalar_field_on_resampled_points(V, F, field, P)",
+    "pygeodesic.find_path(V, F, src, dst)",
+    "pygeodesic.distance_field(V, F, source_indices, edge_split, max_propagation_distance)",
+    "pygeodesic.fast_marching(V, F, source_indices, max_propagation_distance)",
+    "pygeodesic.fast_marching_speed(V, F, source_indices, gradient_magnitudes, max_propagation_distance)",
+    "pyremesh.remesh(V, F, targetEdgeLength)",
+    "pyremesh.remesher (class with fine-grained control)",
+    "pyshapeop.solver (class: setPoints, solve, addClosenessConstraint, addSimilarityConstraint, addUniformLaplacianConstraint)",
+    "pyisocurve (C++ isocurve extraction module)"
+  ]
+}

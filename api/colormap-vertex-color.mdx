@@ -1,0 +1,84 @@
+---
+title: "colormap_vertex_color"
+description: "Map a per-vertex scalar field to RGB colors and save the mesh as a colored .off file."
+---
+
+## Function signature
+
+```python
+colormap_vertex_color(fn, v0, f0, scalar_field, scalar_min=None, scalar_max=None, cmap='jet')
+```
+
+Applies a matplotlib colormap to per-vertex scalar values and writes the result to a `.off` file with embedded vertex colors.
+
+## Parameters
+
+<ParamField path="fn" type="str" required>
+  Output file path. Must have a `.off` extension. OpenMesh does not write vertex colors to `.obj` files.
+</ParamField>
+
+<ParamField path="v0" type="numpy.array" required>
+  Vertex coordinate array of shape `(n, 3)`.
+</ParamField>
+
+<ParamField path="f0" type="numpy.array" required>
+  Face index array of shape `(m, 3)` for triangle meshes or `(m, k)` for polygon meshes.
+</ParamField>
+
+<ParamField path="scalar_field" type="numpy.array" required>
+  Per-vertex scalar values of shape `(n,)`. One value per vertex.
+</ParamField>
+
+<ParamField path="scalar_min" type="float" default="None">
+  Lower clamp bound for the scalar field. If both `scalar_min` and `scalar_max` are `None`, the actual field minimum is used.
+</ParamField>
+
+<ParamField path="scalar_max" type="float" default="None">
+  Upper clamp bound for the scalar field. If both `scalar_min` and `scalar_max` are `None`, the actual field maximum is used.
+</ParamField>
+
+<ParamField path="cmap" type="str" default="'jet'">
+  Name of any matplotlib colormap (e.g. `'jet'`, `'viridis'`, `'plasma'`).
+</ParamField>
+
+## Return value
+
+<ResponseField name="" type="None">
+  This function writes the mesh directly to disk and returns nothing.
+</ResponseField>
+
+## Example
+
+```python
+import numpy as np
+import meshutility as mu
+import openmesh as om
+
+# Load a mesh
+mesh = om.read_trimesh("bunny.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Compute a scalar field (e.g. z-coordinate of each vertex)
+scalar = V[:, 2]
+
+# Write colored mesh to file
+mu.colormap_vertex_color(
+    "bunny_colored.off",
+    V,
+    F,
+    scalar,
+    cmap="viridis"
+)
+```
+
+Clamp the color range to a specific interval:
+
+```python
+mu.colormap_vertex_color("bunny_colored.off", V, F, scalar,
+                          scalar_min=0.0, scalar_max=1.0, cmap="jet")
+```
+
+<Note>
+  OpenMesh writes vertex colors to `.off` files only. Using a `.obj` extension will produce a file without color data.
+</Note>

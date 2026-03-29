@@ -1,0 +1,55 @@
+---
+title: "sphere_cvt"
+description: "Generate a uniform point distribution on the unit sphere using centroidal Voronoi tessellation."
+---
+
+## Function signature
+
+```python
+sphere_cvt(n, iters=100)
+```
+
+Computes an iteratively approximated centroidal Voronoi tessellation (CVT) on the unit sphere. Starting from a random uniform distribution of `n` points, each iteration moves every point to the centroid of its spherical Voronoi region, then projects it back onto the unit sphere. The result is a near-uniform distribution of points together with their Delaunay triangulation.
+
+This implements the algorithm described at [sphere_cvt](https://people.sc.fsu.edu/~jburkardt/m_src/sphere_cvt/sphere_cvt.html).
+
+## Parameters
+
+<ParamField path="n" type="int" required>
+  Number of sample points to generate on the unit sphere.
+</ParamField>
+
+<ParamField path="iters" type="int" default="100">
+  Number of CVT relaxation iterations. More iterations produce a more uniform distribution at the cost of additional computation time.
+</ParamField>
+
+## Return value
+
+<ResponseField name="verts" type="numpy.array">
+  Coordinates of the CVT region centers (the final point positions). Shape `(n, 3)`. All points lie on the unit sphere.
+</ResponseField>
+
+<ResponseField name="faces" type="numpy.array">
+  Delaunay triangulation of `verts`, given as face index triples. Shape `(f, 3)`, dtype `int`. Faces are oriented consistently outward.
+</ResponseField>
+
+## Example
+
+```python
+import meshutility as mu
+import openmesh as om
+
+# Generate 500 uniformly distributed points on the unit sphere
+verts, faces = mu.sphere_cvt(500, iters=100)
+
+print(f"Points: {verts.shape}")   # (500, 3)
+print(f"Faces:  {faces.shape}")   # (f, 3)
+
+# Save result as a mesh
+mesh = om.TriMesh(verts, faces)
+om.write_mesh("sphere_cvt.obj", mesh)
+```
+
+<Note>
+  Progress is printed to stdout during iteration in the form `i/iters`. This comes from the underlying `SphereCVT` class and cannot be suppressed without redirecting stdout.
+</Note>

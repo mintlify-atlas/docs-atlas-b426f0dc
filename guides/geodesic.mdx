@@ -1,0 +1,143 @@
+---
+title: "Geodesic computation"
+description: "Compute exact and approximate geodesic distances and paths on triangle meshes."
+---
+
+Geodesic distances measure the shortest path between two points along a surface. MeshUtility exposes two algorithms: an **exact** method based on the MMP algorithm and a **fast marching** approximation.
+
+## Exact geodesic distances
+
+`mu.pygeodesic.distance_field` computes the exact geodesic distance from one or more source vertices to every vertex on the mesh. It uses the MMP algorithm (Danil Kirsanov's implementation).
+
+```python
+import numpy as np
+import meshutility as mu
+
+# V: (n, 3) float array of vertex positions
+# F: (m, 3) int array of face indices
+# source_indices: 1-D int array of source vertex indices
+source_indices = np.array([0])
+D = mu.pygeodesic.distance_field(V, F, source_indices)
+# D[i] is the exact geodesic distance from any source to vertex i
+```
+
+**Parameters**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `V` | `(n, 3) float` | — | Vertex positions |
+| `F` | `(m, 3) int` | — | Face indices |
+| `source_indices` | `int array` | — | Indices of source vertices |
+| `edge_split` | `float` | `-1.0` | Edge split parameter (negative = disabled) |
+| `max_propagation_distance` | `float` | `-1.0` | Stop propagation beyond this distance. Negative means unlimited. |
+
+**Return value**
+
+A `(n,)` float array. `D[i]` is the geodesic distance from the nearest source vertex to vertex `i`. Vertices not reached (when `max_propagation_distance` is set) receive a large sentinel value.
+
+<Tip>
+Pass multiple indices in `source_indices` to compute a multi-source distance field. Each vertex receives the distance to its nearest source.
+</Tip>
+
+## Finding geodesic paths
+
+`mu.pygeodesic.find_path` traces the shortest geodesic path between two specific vertices. It returns the path encoded as a sequence of edge crossings.
+
+```python
+path_edge, path_ratio = mu.pygeodesic.find_path(V, F, src=0, dst=100)
+```
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `V` | `(n, 3) float` | Vertex positions |
+| `F` | `(m, 3) int` | Face indices |
+| `src` | `int` | Source vertex index |
+| `dst` | `int` | Destination vertex index |
+
+**Return values**
+
+- `path_edge` — `(k, 2)` int array. Each row is a pair of vertex indices describing the mesh edge the path crosses.
+- `path_ratio` — `(k,)` float array. `path_ratio[i]` is the interpolation ratio along `path_edge[i]`: position = `V[path_edge[i,0]] * (1 - r) + V[path_edge[i,1]] * r`.
+
+Reconstruct the 3-D path coordinates like this:
+
+```python
+v0 = V[path_edge[:, 0]]
+v1 = V[path_edge[:, 1]]
+r = path_ratio[:, np.newaxis]
+path_pts = v0 * (1 - r) + v1 * r
+```
+
+## Fast marching
+
+Fast marching solves the eikonal equation on the mesh surface and is faster than the exact MMP method, at the cost of some accuracy.
+
+<Tabs>
+  <Tab title="Uniform speed">
+    ```python
+    source_indices = np.array([0])
+    D = mu.pygeodesic.fast_marching(V, F, source_indices)
+    ```
+  </Tab>
+  <Tab title="Per-face speed">
+    Supply a per-face speed field via `gradient_magnitudes`. The propagation speed on each face scales inversely with its magnitude, so high-magnitude regions act as barriers.
+
+    ```python
+    # gradient_magnitudes: (m,) float array, one value per face
+    D = mu.pygeodesic.fast_marching_speed(
+        V, F, source_indices, gradient_magnitudes
+    )
+    ```
+  </Tab>
+</Tabs>
+
+Both functions accept an optional `max_propagation_distance` parameter (default `-1.0`, meaning unlimited). Set it to a positive value to stop propagation early and save computation when you only need distances within a local region.
+
+```python
+# Only compute distances within radius 0.5
+D = mu.pygeodesic.fast_marching(V, F, source_indices,
+                                 max_propagation_distance=0.5)
+```
+
+## Complete example
+
+```python
+import numpy as np
+import openmesh as om
+import meshutility as mu
+
+# Load a mesh
+mesh = om.read_trimesh("bunny.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# --- Exact distance field from vertex 0 ---
+source = np.array([0])
+D_exact = mu.pygeodesic.distance_field(V, F, source)
+
+print(f"Max geodesic distance: {D_exact.max():.4f}")
+
+# --- Geodesic path from vertex 0 to vertex 500 ---
+path_edge, path_ratio = mu.pygeodesic.find_path(V, F, src=0, dst=500)
+
+v0 = V[path_edge[:, 0]]
+v1 = V[path_edge[:, 1]]
+r = path_ratio[:, np.newaxis]
+path_pts = v0 * (1 - r) + v1 * r
+
+print(f"Path has {len(path_pts)} waypoints")
+
+# --- Fast marching (approximate, faster) ---
+D_fm = mu.pygeodesic.fast_marching(V, F, source)
+```
+
+<CardGroup cols={2}>
+  <Card title="Isocurve extraction" icon="chart-line" href="/guides/isocurves">
+    Use the distance field as input to extract contour lines at constant distance.
+  </Card>
+  <Card title="Visualization" icon="eye" href="/guides/visualization">
+    Color-map the distance field onto the mesh and export it.
+  </Card>
+</CardGroup>

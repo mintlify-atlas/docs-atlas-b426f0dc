@@ -1,0 +1,87 @@
+---
+title: "ff_graph / vv_graph"
+description: "Convert a mesh into a NetworkX graph of face-face or vertex-vertex adjacency."
+---
+
+## Functions
+
+```python
+ff_graph(mesh)
+vv_graph(mesh)
+```
+
+These functions convert an OpenMesh mesh object into a [NetworkX](https://networkx.org/) `Graph`, enabling graph algorithms such as connected-component analysis, shortest paths, and spectral methods on mesh topology.
+
+---
+
+## `ff_graph`
+
+```python
+G = ff_graph(mesh)
+```
+
+Builds a face-face adjacency graph. Each node represents a face; an edge connects two nodes if the corresponding faces share a mesh edge.
+
+### Parameters
+
+<ParamField path="mesh" type="openmesh.TriMesh | openmesh.PolyMesh" required>
+  An OpenMesh triangle or polygon mesh object.
+</ParamField>
+
+### Return value
+
+<ResponseField name="G" type="networkx.Graph">
+  Undirected graph with one node per face. Node IDs correspond to face indices in the mesh.
+</ResponseField>
+
+---
+
+## `vv_graph`
+
+```python
+G = vv_graph(mesh)
+```
+
+Builds a vertex-vertex adjacency graph. Each node represents a vertex; an edge connects two nodes if the corresponding vertices share a mesh edge.
+
+### Parameters
+
+<ParamField path="mesh" type="openmesh.TriMesh | openmesh.PolyMesh" required>
+  An OpenMesh triangle or polygon mesh object.
+</ParamField>
+
+### Return value
+
+<ResponseField name="G" type="networkx.Graph">
+  Undirected graph with one node per vertex. Node IDs correspond to vertex indices in the mesh.
+</ResponseField>
+
+---
+
+## Example
+
+```python
+import openmesh as om
+import networkx as nx
+from meshutility import ff_graph, vv_graph
+
+mesh = om.read_trimesh("model.obj")
+
+# --- Face-face graph ---
+G_face = ff_graph(mesh)
+
+# Count connected components via face adjacency
+components = list(nx.connected_components(G_face))
+print(f"Mesh has {len(components)} connected component(s)")
+
+# --- Vertex-vertex graph ---
+G_vert = vv_graph(mesh)
+
+# Compute shortest path between two vertices
+path = nx.shortest_path(G_vert, source=0, target=100)
+print(f"Shortest edge path: {path}")
+```
+
+<Note>
+  Boundary edges have only one adjacent face. The `ff_graph` function removes the sentinel node `-1` that OpenMesh uses for boundary half-edges, so boundary faces appear with degree less than 3 in the graph rather than connected to an invalid node.
+</Note>

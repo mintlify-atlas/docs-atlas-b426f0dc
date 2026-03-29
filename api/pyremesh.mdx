@@ -1,0 +1,327 @@
+---
+title: "pyremesh"
+description: "C++ module for incremental isotropic remeshing of triangular meshes."
+---
+
+The `pyremesh` module is a C++ extension implementing incremental isotropic remeshing as described in _Polygon Mesh Processing_ (Botsch et al., 2010, §6.5.3). It provides both a convenience function for one-shot remeshing and a `remesher` class for fine-grained control over each step of the pipeline.
+
+```python
+import meshutility as mu
+
+# Simple one-shot remeshing
+V1, F1 = mu.pyremesh.remesh(V, F, targetEdgeLength)
+
+# Advanced usage with the remesher class
+r = mu.pyremesh.remesher()
+r.init_mesh(V, F)
+r.collect_features()
+r.remesh(targetEdgeLength, iterations=10)
+V1, F1 = r.get_mesh()
+```
+
+---
+
+## `pyremesh.remesh`
+
+Remesh a triangular mesh to a uniform target edge length in a single call. Runs 10 iterations of the incremental remeshing pipeline and automatically detects feature edges.
+
+```python
+V1, F1 = mu.pyremesh.remesh(V, F, targetEdgeLength)
+```
+
+### Parameters
+
+<ParamField path="V" type="numpy.ndarray" required>
+  Input vertex coordinate matrix of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.ndarray" required>
+  Input face index matrix of shape `(n, 3)` with 0-based integer indices.
+</ParamField>
+
+<ParamField path="targetEdgeLength" type="float" required>
+  Target edge length for the remeshed output. Edges longer than `4/3 * targetEdgeLength` are split; edges shorter than `4/5 * targetEdgeLength` are collapsed.
+</ParamField>
+
+### Returns
+
+<ResponseField name="V1" type="numpy.ndarray">
+  Output vertex coordinate matrix of shape `(m', 3)`.
+</ResponseField>
+
+<ResponseField name="F1" type="numpy.ndarray">
+  Output face index matrix of shape `(n', 3)`.
+</ResponseField>
+
+### Example
+
+```python
+import meshutility as mu
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Remesh to a uniform edge length of 0.05
+V1, F1 = mu.pyremesh.remesh(V, F, 0.05)
+
+out = om.TriMesh(V1, F1)
+om.write_mesh("remeshed.obj", out)
+```
+
+---
+
+## `pyremesh.remesher`
+
+Class for incremental remeshing with step-by-step control. Useful when you need to interleave remeshing with other operations (such as shape optimization), or when you want to specify features manually.
+
+### Constructor
+
+```python
+r = mu.pyremesh.remesher()
+```
+
+No arguments.
+
+---
+
+### Mesh I/O
+
+#### `init_mesh(V, F)`
+
+Load the input mesh. Call this before any other method.
+
+<ParamField path="V" type="numpy.ndarray" required>
+  Vertex coordinate matrix of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.ndarray" required>
+  Face index matrix of shape `(n, 3)` with 0-based indices.
+</ParamField>
+
+---
+
+#### `get_mesh()`
+
+Return the current mesh after remeshing.
+
+```python
+V1, F1 = r.get_mesh()
+```
+
+<ResponseField name="V1" type="numpy.ndarray">
+  Current vertex coordinate matrix of shape `(m', 3)`.
+</ResponseField>
+
+<ResponseField name="F1" type="numpy.ndarray">
+  Current face index matrix of shape `(n', 3)`.
+</ResponseField>
+
+---
+
+#### `update_points(V)`
+
+Replace the vertex positions of the current mesh without changing connectivity. Useful when combining remeshing with a shape optimization loop that modifies vertex positions externally (e.g., with `pyshapeop`).
+
+<ParamField path="V" type="numpy.ndarray" required>
+  New vertex coordinate matrix of shape `(m', 3)`. Must match the current vertex count returned by `get_mesh`.
+</ParamField>
+
+---
+
+### Feature detection
+
+Feature edges and vertices are preserved during remeshing — they are not smoothed or collapsed.
+
+#### `collect_features()`
+
+Automatically detect feature edges and vertices from the mesh geometry. Call this after `init_mesh` before running `remesh`. This is what `pyremesh.remesh(...)` calls internally.
+
+---
+
+#### `set_features(edge_indices)`
+
+Manually specify feature edges.
+
+<ParamField path="edge_indices" type="numpy.ndarray" required>
+  Integer matrix of shape `(k, 2)`. Each row `[i, j]` defines a feature edge by its two endpoint vertex indices.
+</ParamField>
+
+---
+
+#### `set_feature_vertices(vertex_indices)`
+
+Manually specify feature vertices. Feature vertices are constrained during tangential relaxation.
+
+<ParamField path="vertex_indices" type="numpy.ndarray" required>
+  1D integer array of vertex indices to mark as features.
+</ParamField>
+
+---
+
+#### `set_features_by_dihedral_angle(angle)`
+
+Detect feature edges by dihedral angle threshold. Any edge whose dihedral angle exceeds `angle` is marked as a feature.
+
+<ParamField path="angle" type="float" required>
+  Dihedral angle threshold in degrees. Edges sharper than this value are treated as features.
+</ParamField>
+
+---
+
+#### `set_feature_vertices_by_angle(angle)`
+
+Detect feature vertices by the angle between adjacent feature edges.
+
+<ParamField path="angle" type="float" required>
+  Angle threshold in degrees.
+</ParamField>
+
+---
+
+#### `get_features()`
+
+Return the current set of feature edges.
+
+```python
+E = r.get_features()
+```
+
+<ResponseField name="E" type="numpy.ndarray">
+  Integer matrix of shape `(k, 2)` — feature edge endpoint index pairs.
+</ResponseField>
+
+---
+
+#### `get_feature_vertices()`
+
+Return the current set of feature vertices.
+
+```python
+fv = r.get_feature_vertices()
+```
+
+<ResponseField name="fv" type="numpy.ndarray">
+  1D integer array of feature vertex indices.
+</ResponseField>
+
+---
+
+### Remeshing pipeline
+
+#### `remesh(targetEdgeLength, iterations)`
+
+Run the full incremental remeshing pipeline for a given number of iterations. Each iteration consists of edge splitting, edge collapsing, valence equalization, tangential relaxation, and projection to the original surface.
+
+<ParamField path="targetEdgeLength" type="float" required>
+  Target edge length. Edges longer than `4/3 * targetEdgeLength` are split; edges shorter than `4/5 * targetEdgeLength` are collapsed.
+</ParamField>
+
+<ParamField path="iterations" type="int" required>
+  Number of remeshing iterations to run.
+</ParamField>
+
+---
+
+The following methods allow you to run individual steps of the pipeline manually:
+
+#### `split_long_edges(targetEdgeLength)`
+
+Split edges longer than `4/3 * targetEdgeLength` by inserting a new vertex at the midpoint.
+
+<ParamField path="targetEdgeLength" type="float" required>
+  Reference edge length. The split threshold is `4/3 * targetEdgeLength`.
+</ParamField>
+
+---
+
+#### `collapse_short_edges(minEdgeLength, maxEdgeLength)`
+
+Collapse edges shorter than `minEdgeLength` while respecting feature constraints. Edges longer than `maxEdgeLength` are not collapsed.
+
+<ParamField path="minEdgeLength" type="float" required>
+  Minimum edge length threshold. Edges shorter than this value are candidates for collapse.
+</ParamField>
+
+<ParamField path="maxEdgeLength" type="float" required>
+  Maximum edge length bound. Edges above this length are never collapsed. Typically set to `4/3 * targetEdgeLength`.
+</ParamField>
+
+---
+
+#### `equalize_valences()`
+
+Perform edge flips to drive vertex valences toward their target values (6 for interior vertices, 4 for boundary vertices). Improves mesh regularity without moving vertices.
+
+---
+
+#### `tangential_relaxation()`
+
+Smooth vertex positions by moving each vertex toward the centroid of its neighbors, projected onto the local tangent plane. Feature vertices are not moved.
+
+---
+
+#### `project_to_surface()`
+
+Project all vertices back onto the original input surface using a nearest-point query. Call this after `tangential_relaxation` to prevent drift from the original shape.
+
+---
+
+### Example — advanced usage with shape optimization
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+target_length = 0.05
+
+r = mu.pyremesh.remesher()
+r.init_mesh(V, F)
+r.set_features_by_dihedral_angle(30.0)
+r.set_feature_vertices_by_angle(30.0)
+
+# Run remeshing
+r.remesh(target_length, 5)
+V1, F1 = r.get_mesh()
+
+# --- interleave with shape optimization ---
+# Modify V1 externally, then push it back:
+# V1 = some_optimizer(V1, F1)
+# r.update_points(V1)
+# r.remesh(target_length, 5)
+# V1, F1 = r.get_mesh()
+
+out = om.TriMesh(V1, F1)
+om.write_mesh("remeshed.obj", out)
+```
+
+### Example — manual pipeline steps
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+target_length = 0.05
+
+r = mu.pyremesh.remesher()
+r.init_mesh(V, F)
+r.collect_features()
+
+for _ in range(10):
+    r.split_long_edges(target_length)
+    r.collapse_short_edges(target_length, target_length)
+    r.equalize_valences()
+    r.tangential_relaxation()
+    r.project_to_surface()
+
+V1, F1 = r.get_mesh()
+```

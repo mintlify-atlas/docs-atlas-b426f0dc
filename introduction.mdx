@@ -1,0 +1,63 @@
+---
+title: "Introduction"
+description: "MeshUtility is a Python library for triangular mesh processing with performance-critical algorithms implemented as C++ extensions."
+---
+
+MeshUtility is a collection of Python utilities for triangular mesh processing. Algorithms that require performance are implemented as compiled C++ extensions and exposed to Python via pybind11, so you get the convenience of a Python API with near-native execution speed for the heavy lifting.
+
+## Features
+
+**Python modules**
+
+- `colormap_vertex_color` — assign per-vertex colors to visualize a scalar field on a mesh
+- `cut_along_curve` — cut a mesh along a vertex chain
+- `ff_graph` / `vv_graph` — build face-face and vertex-vertex adjacency graphs backed by NetworkX
+- `get_scalar_field_on_resampled_points` — interpolate a scalar field defined on mesh vertices onto resampled points
+- `IsoCurve` — extract isocurves from a scalar field defined on a manifold triangular mesh
+- `read_obj_lines` / `write_obj_lines` — read and write polylines from Wavefront `.obj` files
+- `remove_unreferenced_vertices` — clean up meshes by removing vertices not referenced by any face
+- `sphere_cvt` — approximate centroidal Voronoi tessellation (CVT) on the unit sphere for uniform point sampling
+- `split_connected_components` — split a mesh into its connected components
+- `split_mesh` / `split_mesh_complete` — split a mesh by inserting new vertices on edges
+
+**C++ extension modules**
+
+| Module | Description |
+|---|---|
+| `pygeodesic` | Exact geodesic distances via the MMP algorithm (Danil Kirsanov's implementation) and fast marching with optional per-face speed weighting |
+| `pyisocurve` | C++ implementation of isocurve extraction, equivalent to `IsoCurve` |
+| `pyremesh` | Incremental isotropic remeshing with target edge length control |
+| `pyshapeop` | Partial Python binding of the ShapeOp geometric constraint solver |
+
+## Dependencies
+
+MeshUtility requires the following Python packages:
+
+- [numpy](https://numpy.org)
+- [scipy](https://scipy.org)
+- [networkx](https://networkx.org)
+- [matplotlib](https://matplotlib.org)
+- [openmesh](https://www.openmesh.org/media/Documentations/OpenMesh-Doc-Latest/a04088.html)
+
+The C++ extension modules (`pygeodesic`, `pyisocurve`, `pyremesh`, `pyshapeop`) are pre-compiled and included in the wheel — no C++ toolchain is required when installing from PyPI.
+
+## License
+
+MeshUtility is released under the [LGPL-2.1 license](https://github.com/zishun/MeshUtility/blob/main/LICENSE).
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install MeshUtility via pip or build from source
+  </Card>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Load a mesh and compute geodesic distances in minutes
+  </Card>
+  <Card title="Geodesic guide" icon="route" href="/guides/geodesic">
+    In-depth walkthrough of exact and fast-marching geodesics
+  </Card>
+  <Card title="pygeodesic API" icon="code" href="/api/pygeodesic">
+    Full reference for the pygeodesic C++ module
+  </Card>
+</CardGroup>

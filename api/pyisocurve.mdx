@@ -1,0 +1,111 @@
+---
+title: "pyisocurve"
+description: "C++ module for isocurve extraction on triangular meshes. A faster alternative to the Python IsoCurve class."
+---
+
+The `pyisocurve` module is a C++ extension that extracts isocurves (level-set contours) from a scalar field defined on the vertices of a triangular mesh. It exposes the `isocurve` class, which mirrors the interface of the Python `IsoCurve` class but runs significantly faster due to the C++ implementation.
+
+```python
+import meshutility as mu
+
+ic = mu.pyisocurve.isocurve(V, F, field)
+pts, on_edge, ratio, curves = ic.extract(value, tolerance)
+```
+
+<Tip>
+  Use `pyisocurve` instead of the Python `IsoCurve` class when performance matters, for example when extracting many isocurves in a loop or on large meshes. The interface is identical.
+</Tip>
+
+---
+
+## `pyisocurve.isocurve`
+
+Class for isocurve extraction. Construct it once with the mesh and scalar field, then call `extract` for each isovalue.
+
+### Constructor
+
+```python
+ic = mu.pyisocurve.isocurve(V, F, field)
+```
+
+<ParamField path="V" type="numpy.ndarray" required>
+  Vertex coordinate matrix of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.ndarray" required>
+  Face index matrix of shape `(n, 3)` with 0-based integer indices defining the triangulation.
+</ParamField>
+
+<ParamField path="field" type="numpy.ndarray" required>
+  Scalar field defined at vertices, shape `(m,)`. Must have the same number of entries as `V` has rows. Isocurves are extracted at level-set values within the range of this field.
+</ParamField>
+
+---
+
+### `isocurve.extract`
+
+Extract the isocurve at a given scalar value.
+
+```python
+pts, on_edge, ratio, curves = ic.extract(val, eqlTol)
+```
+
+<ParamField path="val" type="float" required>
+  The isovalue at which to extract the contour. All points on the mesh where `field == val` form the isocurve.
+</ParamField>
+
+<ParamField path="eqlTol" type="float" required>
+  Equality tolerance. Vertices whose field value is within `eqlTol` of `val` are treated as lying exactly on the isocurve rather than on one side of it. A small positive value (e.g., `1e-10`) avoids degenerate configurations.
+</ParamField>
+
+#### Returns
+
+<ResponseField name="pts" type="numpy.ndarray">
+  Float array of shape `(p, 3)`. The 3D coordinates of all points on the isocurve. Points may lie either on mesh vertices (where the field equals `val`) or on mesh edges (linearly interpolated).
+</ResponseField>
+
+<ResponseField name="on_edge" type="numpy.ndarray">
+  Integer array of shape `(p, 2)`. Each row `[i, j]` identifies the mesh edge that the corresponding point in `pts` lies on. For points that coincide with a vertex, both entries reference that vertex.
+</ResponseField>
+
+<ResponseField name="ratio" type="numpy.ndarray">
+  Float array of shape `(p,)`. The interpolation ratio along the edge for each point in `pts`. A value of `t` means the point is at `(1 - t) * V[on_edge[k, 0]] + t * V[on_edge[k, 1]]`.
+</ResponseField>
+
+<ResponseField name="curves" type="list[deque[int]]">
+  A list of curves. Each curve is a `deque` of indices into `pts`, ordered along the curve from one end to the other (or wrapping around for closed curves). Multiple curves are returned when the isocurve consists of disconnected components.
+</ResponseField>
+
+---
+
+### Example
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Compute a scalar field, e.g. geodesic distance from vertex 0
+source = np.array([0], dtype=np.int32)
+field = mu.pygeodesic.distance_field(V, F, source)
+
+# Build the isocurve extractor once
+ic = mu.pyisocurve.isocurve(V, F, field)
+
+# Extract the isocurve at distance 1.0
+pts, on_edge, ratio, curves = ic.extract(1.0, 1e-10)
+
+print(f"Found {len(curves)} curve component(s) with {pts.shape[0]} points total.")
+
+# Reconstruct ordered 3D polylines
+for curve in curves:
+    polyline = pts[list(curve)]  # shape (k, 3)
+```
+
+<Note>
+  When `field` has values that are exactly equal to `val` at many vertices, increase `eqlTol` slightly to avoid degenerate output. Conversely, set `eqlTol` close to zero for precise extraction.
+</Note>

@@ -1,0 +1,135 @@
+---
+title: "Isocurve extraction"
+description: "Extract contour lines at a constant scalar value from a scalar field defined on a triangle mesh."
+---
+
+An isocurve (contour line) is the set of all points on a mesh surface where a scalar field equals a given value. Common uses include extracting level sets of a geodesic distance field, height contours, or any other per-vertex scalar.
+
+## The IsoCurve class
+
+```python
+from meshutility import IsoCurve
+```
+
+Construct an `IsoCurve` object once for a given mesh and field, then call `.extract(val)` for each iso-value you need.
+
+```python
+iso = IsoCurve(points, faces, field)
+pts, on_edge, ratio, curve_all = iso.extract(val)
+```
+
+### Constructor
+
+```python
+IsoCurve(points, faces, field)
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `points` | `(n, 3) float` | Mesh vertex positions |
+| `faces` | `(m, 3) int` | Face indices |
+| `field` | `(n,) float` | Per-vertex scalar field values |
+
+### extract
+
+```python
+pts, on_edge, ratio, curve_all = iso.extract(val, eqlTol=1e-6)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `val` | `float` | — | The iso-value to extract |
+| `eqlTol` | `float` | `1e-6` | A vertex is considered to lie exactly on the isocurve when `abs(field[v] - val) < eqlTol` |
+
+**Return values**
+
+| Name | Shape | Description |
+|---|---|---|
+| `pts` | `(k, 3) float` | 3-D coordinates of all isocurve points |
+| `on_edge` | `(k, 2) int` | Each row `[v0, v1]` gives the mesh edge the point lies on. When the point is exactly on a vertex, both entries equal that vertex index. |
+| `ratio` | `(k,) float` | Interpolation ratio along the edge: `pt = V[v0] * (1 - r) + V[v1] * r` |
+| `curve_all` | `list of list` | Each inner list is an ordered sequence of indices into `pts` forming one connected isocurve segment or loop |
+
+## Working with multiple iso-values
+
+Because `IsoCurve` stores the mesh internally, you can call `.extract` multiple times on the same object without re-parsing the mesh:
+
+```python
+import numpy as np
+import openmesh as om
+import meshutility as mu
+from meshutility import IsoCurve
+
+mesh = om.read_trimesh("bunny.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Compute geodesic distance field from vertex 0
+source = np.array([0])
+D = mu.pygeodesic.distance_field(V, F, source)
+
+iso = IsoCurve(V, F, D)
+
+for val in np.linspace(D.min(), D.max(), num=10):
+    pts, on_edge, ratio, curve_all = iso.extract(val)
+    print(f"val={val:.3f}  curves={len(curve_all)}  pts={len(pts)}")
+```
+
+## Exporting isocurves
+
+Use `mu.write_obj_lines` to save the extracted curves as an OBJ polyline file that MeshLab and other tools can open:
+
+```python
+import numpy as np
+import openmesh as om
+import meshutility as mu
+from meshutility import IsoCurve
+
+mesh = om.read_trimesh("bunny.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+source = np.array([0])
+D = mu.pygeodesic.distance_field(V, F, source)
+
+iso = IsoCurve(V, F, D)
+
+all_pts = []
+all_curves = []
+pt_offset = 0
+
+for val in np.linspace(D.min(), D.max(), num=20):
+    pts, on_edge, ratio, curve_all = iso.extract(val)
+    if pts.shape[0] == 0:
+        continue
+    # Offset curve indices so they reference the growing all_pts list
+    shifted = [[idx + pt_offset for idx in c] for c in curve_all]
+    all_curves.extend(shifted)
+    all_pts.append(pts)
+    pt_offset += pts.shape[0]
+
+all_pts = np.concatenate(all_pts, axis=0)
+mu.write_obj_lines("isocurves.obj", all_pts, all_curves)
+```
+
+## C++ alternative
+
+The Python `IsoCurve` class is straightforward to use but processes the mesh in interpreted Python. For large meshes or many iso-values, the compiled `mu.pyisocurve` module provides the same extraction with significantly lower overhead.
+
+<Warning>
+The extractor prints console warnings in several edge cases:
+
+- **"Not handled: a whole triangle lays on the iso value."** — Occurs when all three vertices of a face equal `val` exactly. The triangle is skipped.
+- **"Non-manifold curve."** or **"Non-manifold. more than 2 neighbors."** — The isocurve branches at a vertex. This can happen at saddle points of the scalar field or degenerate geometry.
+- **"Isolated point."** — A point sits on the iso-value but is not connected to any curve segment.
+
+These warnings indicate unusual topology in the field; the returned data is still valid for the segments that were successfully extracted.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Geodesic computation" icon="route" href="/guides/geodesic">
+    Compute a distance field to use as input for isocurve extraction.
+  </Card>
+  <Card title="Visualization" icon="eye" href="/guides/visualization">
+    Export curves and color-mapped meshes together.
+  </Card>
+</CardGroup>

@@ -1,0 +1,220 @@
+---
+title: "pyshapeop"
+description: "Partial Python binding of the ShapeOp library for constraint-based shape deformation and geometry optimization."
+---
+
+The `pyshapeop` module is a C++ extension that exposes a subset of the [ShapeOp](https://shapeop.org) solver for constraint-based shape deformation. You set up point positions and constraints, then call `solve` to find positions that satisfy those constraints as closely as possible in a least-squares sense.
+
+```python
+import meshutility as mu
+
+s = mu.pyshapeop.solver()
+s.setPoints(points)
+# add constraints ...
+s.initialize()
+s.solve(10)
+result = s.getPoints()
+```
+
+<Warning>
+  This is a partial binding. Only the methods listed on this page are exposed from the ShapeOp library. For the full ShapeOp API, refer to the [ShapeOp documentation](https://shapeop.org).
+</Warning>
+
+---
+
+## `pyshapeop.solver`
+
+The main class. Manages point positions and constraints, and runs the ShapeOp iterative solver.
+
+### Constructor
+
+```python
+s = mu.pyshapeop.solver()
+```
+
+No arguments.
+
+---
+
+### Point management
+
+#### `setPoints(points)`
+
+Set the input point positions. Call this before adding constraints or calling `initialize`.
+
+<ParamField path="points" type="numpy.ndarray" required>
+  Point coordinate matrix of shape `(m, 3)`. These are the initial positions that the solver optimizes from.
+</ParamField>
+
+---
+
+#### `getPoints()`
+
+Return the current point positions, after solving.
+
+```python
+points = s.getPoints()
+```
+
+<ResponseField name="points" type="numpy.ndarray">
+  Float array of shape `(m, 3)` — the current (possibly optimized) positions of all points.
+</ResponseField>
+
+---
+
+### Constraints
+
+Add one or more constraints before calling `initialize`. Each constraint operates on a subset of points and contributes a term to the objective function.
+
+---
+
+#### `addClosenessConstraint(i, target, weight)`
+
+Constrain a single point to stay close to a target position.
+
+<ParamField path="i" type="int" required>
+  Index of the point to constrain (0-based).
+</ParamField>
+
+<ParamField path="target" type="numpy.ndarray" required>
+  Target position as a 1D array of shape `(3,)`.
+</ParamField>
+
+<ParamField path="weight" type="float" required>
+  Constraint weight. Higher values penalize deviation from the target position more strongly.
+</ParamField>
+
+---
+
+#### `addSimilarityConstraint(face, shape, weight, scaling, rotate, flip)`
+
+Constrain a set of points to be as similar as possible to a reference shape, allowing for similarity transformations.
+
+<ParamField path="face" type="list[int]" required>
+  List of point indices defining the shape to constrain.
+</ParamField>
+
+<ParamField path="shape" type="numpy.ndarray" required>
+  Reference shape as a matrix of shape `(len(face), 3)`. The solver finds the best-fit similarity transform mapping `shape` onto the current positions.
+</ParamField>
+
+<ParamField path="weight" type="float" required>
+  Constraint weight.
+</ParamField>
+
+<ParamField path="scaling" type="bool" required>
+  If `True`, allow uniform scaling in the similarity transform.
+</ParamField>
+
+<ParamField path="rotate" type="bool" required>
+  If `True`, allow rotation in the similarity transform.
+</ParamField>
+
+<ParamField path="flip" type="bool" required>
+  If `True`, allow reflections in the similarity transform.
+</ParamField>
+
+---
+
+#### `addUniformLaplacianConstraint(idI, weight, displacement_lap)`
+
+Add a uniform Laplacian smoothness constraint on a set of points. Encourages the points to satisfy a discrete Laplacian equation, producing smooth configurations.
+
+<ParamField path="idI" type="list[int]" required>
+  List of point indices. The first index is the center point; the remaining indices are its neighbors. The Laplacian is computed over this stencil.
+</ParamField>
+
+<ParamField path="weight" type="float" required>
+  Constraint weight. Higher values produce stronger smoothing.
+</ParamField>
+
+<ParamField path="displacement_lap" type="bool" required>
+  If `True`, use a displacement Laplacian (difference from rest). If `False`, use the absolute Laplacian.
+</ParamField>
+
+---
+
+### Solver
+
+#### `initialize()`
+
+Initialize the solver's internal data structures. Call this after all points and constraints have been set up, and before calling `solve`.
+
+```python
+s.initialize()
+```
+
+---
+
+#### `solve(iterations)`
+
+Run the ShapeOp solver for the given number of iterations. After solving, retrieve updated positions with `getPoints`.
+
+<ParamField path="iterations" type="int" required>
+  Number of solver iterations to run. More iterations yield more accurate constraint satisfaction but take longer.
+</ParamField>
+
+---
+
+### Example — closeness constraints
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+# Load a mesh; treat vertices as points
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+s = mu.pyshapeop.solver()
+s.setPoints(V)
+
+# Pin every 10th vertex to its original position
+for i in range(0, V.shape[0], 10):
+    s.addClosenessConstraint(i, V[i], 1.0)
+
+s.initialize()
+s.solve(50)
+
+V_optimized = s.getPoints()
+```
+
+---
+
+### Example — Laplacian smoothing
+
+```python
+import meshutility as mu
+import numpy as np
+import openmesh as om
+
+mesh = om.read_trimesh("mesh.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Build vertex adjacency using vv_graph
+G = mu.vv_graph(mesh)
+
+s = mu.pyshapeop.solver()
+s.setPoints(V)
+
+# Add uniform Laplacian constraint for each vertex
+for i in range(V.shape[0]):
+    neighbors = list(G.neighbors(i))
+    if len(neighbors) > 0:
+        stencil = [i] + neighbors
+        s.addUniformLaplacianConstraint(stencil, 1.0, False)
+
+# Pin boundary vertices in place with closeness constraints
+for vh in mesh.vertices():
+    if mesh.is_boundary(vh):
+        i = vh.idx()
+        s.addClosenessConstraint(i, V[i], 10.0)
+
+s.initialize()
+s.solve(20)
+
+V_smooth = s.getPoints()
+```

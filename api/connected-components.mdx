@@ -1,0 +1,56 @@
+---
+title: "split_connected_components"
+description: "Split a mesh into separate meshes, one per connected component."
+---
+
+## Function signature
+
+```python
+split_connected_components(V, F)
+```
+
+Identifies the connected components of a mesh using face-face adjacency and returns each component as an independent `openmesh.PolyMesh` object. Unreferenced vertices (those that belong only to other components) are removed from each part.
+
+## Parameters
+
+<ParamField path="V" type="numpy.array" required>
+  Vertex coordinate array of shape `(n, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.array" required>
+  Face index array of shape `(m, k)`, where `k` is the number of vertices per face.
+</ParamField>
+
+## Return value
+
+<ResponseField name="parts" type="list[openmesh.PolyMesh]">
+  List of `openmesh.PolyMesh` objects, one per connected component. The ordering corresponds to the order in which NetworkX discovers connected components via `ff_graph`.
+</ResponseField>
+
+## Example
+
+```python
+import meshutility as mu
+import openmesh as om
+
+input_mesh = om.read_trimesh("multi_component.obj")
+V = input_mesh.points()
+F = input_mesh.face_vertex_indices()
+
+parts = mu.split_connected_components(V, F)
+print(f"Found {len(parts)} connected component(s)")
+
+for i, part in enumerate(parts):
+    verts = part.points()                   # numpy array (n, 3)
+    faces = part.face_vertex_indices()      # numpy array (m, k)
+    print(f"  Component {i}: {verts.shape[0]} vertices, {faces.shape[0]} faces")
+
+# Save each component as a separate file
+import openmesh as om
+for i, part in enumerate(parts):
+    om.write_mesh(f"component_{i}.obj", part)
+```
+
+<Note>
+  The function uses `openmesh.PolyMesh` internally, so the returned objects support polygon faces. Use `part.points()` to access vertex coordinates and `part.face_vertex_indices()` to access face indices.
+</Note>

@@ -1,97 +1,79 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: MeshUtility
+description: A Python library with C++ extensions for mesh processing — geodesic computation, isocurve extraction, remeshing, mesh cutting, and more.
 ---
 
-## Setting up
+MeshUtility is a collection of Python utilities for triangular mesh processing, with performance-critical algorithms implemented as C++ extensions via pybind11. It supports geodesic distance computation, isocurve extraction, incremental remeshing, mesh cutting and splitting, graph construction, and visualization helpers.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install via pip or build from source with C++ extensions
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Load a mesh and run your first geodesic computation in minutes
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="API Reference" icon="code" href="/api/pygeodesic">
+    Full reference for every public function and class
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Guides" icon="book-open" href="/guides/geodesic">
+    In-depth walkthroughs for each major feature
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Key features
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Geodesic computation" icon="route">
+    Exact geodesic paths and distance fields via the MMP algorithm. Fast marching with optional per-face speed weighting.
+  </Card>
+  <Card title="Isocurve extraction" icon="wave-sine">
+    Extract isolines at any scalar value from a field defined on mesh vertices, in both Python and C++.
+  </Card>
+  <Card title="Incremental remeshing" icon="grid">
+    Isotropic remeshing with target edge length control, feature preservation, and fine-grained step-by-step access.
+  </Card>
+  <Card title="Mesh cutting and splitting" icon="scissors">
+    Cut meshes along vertex chains and split edges by inserting new points at arbitrary positions.
+  </Card>
+  <Card title="Graph utilities" icon="diagram-project">
+    Build face-face and vertex-vertex adjacency graphs backed by NetworkX for connectivity queries.
+  </Card>
+  <Card title="Sphere CVT sampling" icon="circle-dot">
+    Uniformly distribute points on the unit sphere using centroidal Voronoi tessellation.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Get started in seconds
 
-## Need inspiration?
+<Steps>
+  <Step title="Install MeshUtility">
+    ```bash
+    pip install meshutility==0.0.2
+    ```
+  </Step>
+  <Step title="Load a mesh">
+    ```python
+    import openmesh as om
+    mesh = om.read_trimesh("my_mesh.obj")
+    V = mesh.points()
+    F = mesh.face_vertex_indices()
+    ```
+  </Step>
+  <Step title="Compute geodesic distances">
+    ```python
+    import meshutility as mu
+    import numpy as np
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+    source_indices = np.array([0])
+    D = mu.pygeodesic.distance_field(V, F, source_indices)
+    print("Geodesic distances computed:", D.shape)
+    ```
+  </Step>
+  <Step title="Explore more">
+    Check the [Guides](/guides/geodesic) for detailed walkthroughs of each feature, or jump straight to the [API Reference](/api/pygeodesic).
+  </Step>
+</Steps>
+
+<Note>
+  MeshUtility works with triangular meshes. Inputs are typically NumPy arrays: vertices as an `(m, 3)` float array and faces as an `(n, 3)` int array.
+</Note>

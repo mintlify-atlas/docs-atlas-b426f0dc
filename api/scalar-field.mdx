@@ -1,0 +1,66 @@
+---
+title: "get_scalar_field_on_resampled_points"
+description: "Interpolate a per-vertex scalar field to arbitrary query points using barycentric coordinates."
+---
+
+## Function signature
+
+```python
+get_scalar_field_on_resampled_points(V, F, field, P)
+```
+
+For each query point in `P`, finds the closest point on the mesh surface, identifies the containing triangle, and interpolates the scalar field using barycentric coordinates. This function is implemented in C++ and compiled as part of the `utils` extension module.
+
+## Parameters
+
+<ParamField path="V" type="numpy.array" required>
+  Mesh vertex coordinate array of shape `(n, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.array" required>
+  Mesh face index array of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="field" type="numpy.array" required>
+  Per-vertex scalar values of shape `(n,)`. One value per mesh vertex.
+</ParamField>
+
+<ParamField path="P" type="numpy.array" required>
+  Query points of shape `(q, 3)`. Each point is projected onto the mesh surface to find its closest triangle.
+</ParamField>
+
+## Return value
+
+<ResponseField name="result" type="numpy.array">
+  Interpolated scalar values at each query point. Shape `(q,)`. The value at query point `P[i]` is computed as a barycentric combination of the `field` values at the three vertices of the closest face.
+</ResponseField>
+
+## Example
+
+```python
+import numpy as np
+import meshutility as mu
+import openmesh as om
+
+# Load a mesh
+mesh = om.read_trimesh("surface.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Define a scalar field on the mesh vertices (e.g. geodesic distance from vertex 0)
+source = np.array([0])
+field = mu.pygeodesic.distance_field(V, F, source)
+
+# Generate query points (e.g. uniformly sampled points on the unit sphere)
+V_resampled, _ = mu.sphere_cvt(200)
+
+# Interpolate field values at the new points
+field_resampled = mu.get_scalar_field_on_resampled_points(V, F, field, V_resampled)
+
+print("Original field shape:", field.shape)           # (n,)
+print("Resampled field shape:", field_resampled.shape) # (200,)
+```
+
+<Note>
+  The closest-point projection uses libigl's `point_mesh_squared_distance`, which finds the nearest point on the mesh surface (not just the nearest vertex). For query points that already lie on the mesh, the result equals the barycentric interpolation of the enclosing face with no additional error.
+</Note>

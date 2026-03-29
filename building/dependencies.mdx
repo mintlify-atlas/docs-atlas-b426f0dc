@@ -1,0 +1,63 @@
+---
+title: "Dependencies"
+description: "Python and C++ dependencies required to build and run MeshUtility."
+---
+
+## Python dependencies
+
+These packages are required at runtime and must be installed before building or using MeshUtility. All are available on PyPI.
+
+| Package      | Install via              | Required | Notes                                         |
+| ------------ | ------------------------ | -------- | --------------------------------------------- |
+| `numpy`      | `pip install numpy`      | Yes      | Array and numerical operations                |
+| `scipy`      | `pip install scipy`      | Yes      | Scientific computing utilities                |
+| `networkx`   | `pip install networkx`   | Yes      | Graph algorithms used for mesh connectivity   |
+| `matplotlib` | `pip install matplotlib` | Yes      | Plotting and visualization                    |
+| `openmesh`   | `pip install openmesh`   | Yes      | Python bindings for the OpenMesh library      |
+| `meshplot`   | `conda install -c conda-forge meshplot` | No | Interactive 3D visualization in Jupyter notebooks |
+
+Install all required packages at once:
+
+```bash
+pip install numpy scipy networkx matplotlib openmesh
+```
+
+Install the optional `meshplot` package with conda:
+
+```bash
+conda install -c conda-forge meshplot
+```
+
+## Build system dependencies
+
+These tools are needed to compile the C++ extensions during `python setup.py install`. They are declared in `pyproject.toml` and fetched automatically when using a PEP 517 build frontend.
+
+| Package          | Version    | Purpose                                              |
+| ---------------- | ---------- | ---------------------------------------------------- |
+| `setuptools`     | >= 42      | Build backend and extension compilation orchestration |
+| `cmake`          | >= 3.12    | Configures and drives the C++ build                  |
+| `ninja`          | any        | Fast parallel build generator (used on non-MSVC)     |
+| `wheel`          | any        | Produces installable wheel packages                  |
+
+<Warning>
+  CMake >= 3.12 is required. The parallel build flag used by setuptools (`-j`)
+  is only supported from CMake 3.12 onwards.
+</Warning>
+
+## C++ dependencies
+
+All C++ dependencies are bundled directly in the repository — either as included source or as git submodules. **You do not need to install any C++ libraries manually.**
+
+| Library    | Bundled as      | Repository / Source                                              | Purpose                                                    |
+| ---------- | --------------- | ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| pybind11   | git submodule   | [pybind/pybind11](https://github.com/pybind/pybind11) v2.9.1    | Python/C++ bindings for all extension modules              |
+| Eigen      | git submodule   | [libigl/eigen](https://github.com/libigl/eigen)                  | Linear algebra, used by libigl and ShapeOp                 |
+| libigl     | git submodule   | [libigl/libigl](https://github.com/libigl/libigl)                | Geometry processing algorithms (`pyremesh`, `pyisocurve`)  |
+| OpenMesh   | included source | —                                                                | Mesh data structure underlying `pyisocurve` and others     |
+| geodesic   | git submodule   | [zishun/geodesic_matlab](https://github.com/zishun/geodesic_matlab) | Danil Kirsanov's MMP algorithm implementation (`pygeodesic`) |
+| ShapeOp    | git submodule   | [EPFL-LGG/ShapeOp](https://github.com/EPFL-LGG/ShapeOp)         | Shape optimization and deformation (`pyshapeop`)           |
+
+<Note>
+  All C++ dependencies are fetched when you clone with `--recurse-submodules`.
+  No separate C++ package manager (e.g., vcpkg, Conan) is required.
+</Note>

@@ -1,0 +1,195 @@
+---
+title: "Mesh operations"
+description: "Cut, split, decompose, and sample meshes with MeshUtility's collection of mesh processing utilities."
+---
+
+## Cutting along a curve
+
+`cut_along_curve` slices a mesh along a chain of vertices, duplicating the boundary vertices so the two sides of the cut become topologically separate.
+
+```python
+import meshutility as mu
+
+# curve_index: ordered list of vertex indices forming the cut path
+mesh, added_verts = mu.cut_along_curve(V, F, curve_index, method='igl')
+```
+
+**Parameters**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `V` | `(n, 3) float` | — | Vertex positions |
+| `F` | `(m, 3) int` | — | Face indices |
+| `curve_index` | `list of int` | — | Ordered vertex indices defining the cut. Adjacent entries must share a mesh edge. |
+| `method` | `str` | `'igl'` | `'igl'` uses libigl's cut-mesh routine. Pass any other string to use the built-in implementation. |
+
+**Return values**
+
+- `mesh` — `openmesh.TriMesh` with the cut applied. The mesh now has an open boundary along the cut.
+- `added_verts` — List of new vertex indices corresponding to the duplicated cut vertices (one per entry in `curve_index`).
+
+```python
+import numpy as np
+import openmesh as om
+import meshutility as mu
+
+input_mesh = om.read_trimesh("surface.obj")
+V = input_mesh.points()
+F = input_mesh.face_vertex_indices()
+
+# Cut from vertex 10 through 50 to vertex 200
+curve = [10, 30, 50, 120, 200]
+mesh, added_verts = mu.cut_along_curve(V, F, curve)
+
+V_cut = mesh.points()
+F_cut = mesh.face_vertex_indices()
+print(f"New vertex count: {V_cut.shape[0]}")
+```
+
+<Note>
+Interior curve vertices (not at the start or end) must not lie on the existing mesh boundary. If your cut path passes through a boundary vertex, split the curve at that point and apply two separate cuts.
+</Note>
+
+## Inserting vertices on edges
+
+### split_mesh
+
+`split_mesh` inserts one new vertex onto each specified edge. The position of each new vertex is defined by a ratio along the edge.
+
+```python
+mesh, new_index = mu.split_mesh(V, F, edges, ratios)
+```
+
+- `edges` — `(k, 2) int` array. Each row is a pair of vertex indices defining the edge to split.
+- `ratios` — `(k,) float` array. Position formula: `p = V[e0] * (1 - r) + V[e1] * r`.
+- Returns an `openmesh.TriMesh` and a list `new_index` where `new_index[i]` is the index of the vertex inserted on `edges[i]`.
+
+When `edges[i, 0] == edges[i, 1]` the function treats that row as an existing vertex (no split); `new_index[i]` equals that vertex index.
+
+### split_mesh_complete
+
+`split_mesh_complete` extends `split_mesh` to handle cases where two consecutive new vertices land in the same face. In that situation it also inserts an edge between them, ensuring the resulting mesh is always a valid triangulation.
+
+```python
+mesh, new_index = mu.split_mesh_complete(V, F, edges, ratios)
+```
+
+The `edges` array should be given in the order of the curve the new vertices trace. The function handles multiple splits on the same edge by sorting them by ratio before inserting.
+
+```python
+import numpy as np
+import openmesh as om
+import meshutility as mu
+from meshutility import IsoCurve
+
+input_mesh = om.read_trimesh("surface.obj")
+V = input_mesh.points()
+F = input_mesh.face_vertex_indices()
+
+# Use IsoCurve to find where a distance isocurve crosses edges
+D = mu.pygeodesic.distance_field(V, F, np.array([0]))
+iso = IsoCurve(V, F, D)
+pts, on_edge, ratio, curve_all = iso.extract(0.1)
+
+# Insert those points into the mesh
+mesh, new_index = mu.split_mesh_complete(V, F, on_edge, ratio)
+print(f"Inserted {len(new_index)} new vertices")
+```
+
+## Connected components
+
+`split_connected_components` partitions a mesh into its face-connected components and returns each as an independent mesh object.
+
+```python
+parts = mu.split_connected_components(V, F)
+# parts: list of openmesh.PolyMesh objects
+```
+
+```python
+import openmesh as om
+import meshutility as mu
+
+input_mesh = om.read_trimesh("multi_component.obj")
+V = input_mesh.points()
+F = input_mesh.face_vertex_indices()
+parts = mu.split_connected_components(V, F)
+
+for i, part in enumerate(parts):
+    print(f"Component {i}: {part.n_vertices()} vertices, {part.n_faces()} faces")
+```
+
+Each returned `openmesh.PolyMesh` has unreferenced vertices already removed. Access the geometry with `part.points()` and `part.face_vertex_indices()`.
+
+## Graph construction
+
+`ff_graph` and `vv_graph` convert an OpenMesh mesh into NetworkX graphs for connectivity analysis.
+
+```python
+import openmesh as om
+import meshutility as mu
+
+mesh = om.TriMesh(V, F)
+
+# Face-face adjacency graph (nodes = face indices, edges = shared mesh edges)
+G_ff = mu.ff_graph(mesh)
+
+# Vertex-vertex adjacency graph (nodes = vertex indices, edges = mesh edges)
+G_vv = mu.vv_graph(mesh)
+```
+
+Both functions accept an `openmesh.PolyMesh` or `openmesh.TriMesh`. Use them with the full NetworkX API — shortest paths, connected components, centrality, etc.
+
+## Removing unreferenced vertices
+
+After topological edits, vertex arrays often contain vertices that no longer appear in any face. `remove_unreferenced_vertices` compacts the arrays and returns an index mapping.
+
+```python
+V_clean, F_clean, idx = mu.remove_unreferenced_vertices(V, F)
+```
+
+- `V_clean` — Vertex array with unreferenced rows removed.
+- `F_clean` — Face array re-indexed to match `V_clean`.
+- `idx` — `(n,)` int array mapping old vertex indices to new ones. `idx[i] == -1` means vertex `i` was removed.
+
+## Sphere CVT sampling
+
+`sphere_cvt` generates a set of points distributed uniformly on the unit sphere using iterative centroidal Voronoi tessellation (CVT), and returns their Delaunay triangulation.
+
+```python
+verts, faces = mu.sphere_cvt(n, iters=100)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `n` | `int` | — | Number of sample points |
+| `iters` | `int` | `100` | CVT iterations. More iterations give more uniform spacing. |
+
+**Return values**
+
+- `verts` — `(n, 3) float` array of point positions on the unit sphere.
+- `faces` — `(k, 3) int` array of Delaunay triangulation faces.
+
+```python
+import meshutility as mu
+import openmesh as om
+
+verts, faces = mu.sphere_cvt(500, iters=50)
+print(f"Generated {verts.shape[0]} points")
+
+# The triangulation covers the full sphere
+sphere_mesh = om.TriMesh(verts, faces)
+om.write_mesh("sphere_cvt.obj", sphere_mesh)
+```
+
+<Note>
+`sphere_cvt` prints iteration progress to stdout. Each CVT step calls `scipy.spatial.SphericalVoronoi`, so runtime scales with both `n` and `iters`.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Geodesic computation" icon="route" href="/guides/geodesic">
+    Compute distance fields to guide cuts and splits.
+  </Card>
+  <Card title="Remeshing" icon="grid-3x3" href="/guides/remeshing">
+    Redistribute vertices to a uniform edge length before or after cutting.
+  </Card>
+</CardGroup>

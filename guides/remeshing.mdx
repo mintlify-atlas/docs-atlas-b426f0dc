@@ -1,0 +1,157 @@
+---
+title: "Remeshing"
+description: "Isotropic remeshing that redistributes vertices to achieve a uniform target edge length."
+---
+
+MeshUtility provides incremental isotropic remeshing based on the algorithm described in section 6.5.3 of *Polygon Mesh Processing* (Botsch et al., 2010). Each iteration applies a sequence of local operations — edge splits, collapses, flips, tangential relaxation, and projection — to push every edge toward a uniform target length.
+
+## Simple API
+
+For most use cases, one call is all you need:
+
+```python
+import openmesh as om
+import meshutility as mu
+
+mesh = om.read_trimesh("input.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+target_edge_length = 0.01
+V1, F1 = mu.pyremesh.remesh(V, F, target_edge_length)
+```
+
+`remesh` runs 10 iterations and automatically detects feature edges via `collect_features`. It returns the remeshed vertex array and face array.
+
+<Tip>
+Start with a target edge length close to the average edge length of your input mesh. You can estimate it as `np.linalg.norm(V[F[:, 0]] - V[F[:, 1]], axis=1).mean()`.
+</Tip>
+
+## Advanced API: the remesher class
+
+Use `mu.pyremesh.remesher` when you need control over feature preservation, custom iteration counts, or step-by-step execution.
+
+<Steps>
+  <Step title="Initialize the remesher">
+    ```python
+    r = mu.pyremesh.remesher()
+    r.init_mesh(V, F)
+    ```
+  </Step>
+  <Step title="Set feature edges and vertices">
+    Features are edges and vertices that the remesher will not collapse or smooth away. Choose one method:
+
+    <Tabs>
+      <Tab title="Auto-detect by dihedral angle">
+        ```python
+        # Mark edges where adjacent faces meet at an angle greater than 30 degrees
+        r.set_features_by_dihedral_angle(30.0)
+
+        # Mark vertices where incident feature edges meet at an angle greater than 30 degrees
+        r.set_feature_vertices_by_angle(30.0)
+        ```
+      </Tab>
+      <Tab title="Provide edge indices explicitly">
+        ```python
+        import numpy as np
+        # edge_indices: (k, 2) int array of vertex-index pairs
+        r.set_features(edge_indices)
+        r.set_feature_vertices(vertex_indices)
+        ```
+      </Tab>
+      <Tab title="Auto-collect (same as simple API)">
+        ```python
+        r.collect_features()
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  <Step title="Run remeshing">
+    ```python
+    r.remesh(target_edge_length, iterations=10)
+    ```
+
+    Or run individual steps manually for finer control:
+
+    ```python
+    for _ in range(10):
+        r.split_long_edges(target_edge_length)
+        r.collapse_short_edges(target_edge_length, target_edge_length)
+        r.equalize_valences()
+        r.tangential_relaxation()
+        r.project_to_surface()
+    ```
+  </Step>
+  <Step title="Retrieve the result">
+    ```python
+    V1, F1 = r.get_mesh()
+    ```
+  </Step>
+</Steps>
+
+### Method reference
+
+#### Mesh I/O
+
+| Method | Description |
+|---|---|
+| `init_mesh(V, F)` | Load the mesh to remesh. Must be called first. |
+| `get_mesh()` | Return `(V, F)` tuple with the current mesh state. |
+| `update_points(V)` | Replace vertex positions without changing connectivity. Useful for time-varying surfaces. |
+
+#### Feature management
+
+| Method | Description |
+|---|---|
+| `collect_features()` | Auto-detect feature edges from the input mesh topology. |
+| `set_features(edge_indices)` | Specify feature edges as an `(k, 2)` int array. |
+| `set_feature_vertices(vertex_indices)` | Specify feature vertices as a `(k,)` int array. |
+| `set_features_by_dihedral_angle(angle)` | Mark edges whose adjacent faces form a dihedral angle larger than `angle` degrees as features. |
+| `set_feature_vertices_by_angle(angle)` | Mark vertices where incident feature edges deviate by more than `angle` degrees. |
+| `get_features()` | Return the current feature edge array `(k, 2)`. |
+| `get_feature_vertices()` | Return the current feature vertex array `(k,)`. |
+
+#### Remeshing steps
+
+| Method | Description |
+|---|---|
+| `remesh(targetEdgeLength, iterations)` | Run the full pipeline for the given number of iterations. |
+| `split_long_edges(targetEdgeLength)` | Split edges longer than `4/3 * targetEdgeLength`. |
+| `collapse_short_edges(minEdgeLength, maxEdgeLength)` | Collapse edges shorter than `minEdgeLength` and not longer than `maxEdgeLength`. |
+| `equalize_valences()` | Flip edges to move vertex valences toward 6 (interior) or 4 (boundary). |
+| `tangential_relaxation()` | Smooth vertex positions along the surface tangent plane. |
+| `project_to_surface()` | Project displaced vertices back onto the original surface. |
+
+## Complete example
+
+```python
+import openmesh as om
+import meshutility as mu
+
+mesh = om.read_trimesh("model.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Use the advanced API with feature preservation
+r = mu.pyremesh.remesher()
+r.init_mesh(V, F)
+r.set_features_by_dihedral_angle(30.0)
+r.set_feature_vertices_by_angle(30.0)
+r.remesh(0.02, 10)
+
+V1, F1 = r.get_mesh()
+print(f"Input:  {V.shape[0]} vertices, {F.shape[0]} faces")
+print(f"Output: {V1.shape[0]} vertices, {F1.shape[0]} faces")
+
+out = om.TriMesh(V1, F1)
+om.write_mesh("remeshed.obj", out)
+```
+
+<CardGroup cols={2}>
+  <Card title="Mesh operations" icon="scissors" href="/guides/mesh-operations">
+    Cut, split, and decompose meshes after remeshing.
+  </Card>
+  <Card title="Visualization" icon="eye" href="/guides/visualization">
+    Color-map scalar fields on the remeshed result.
+  </Card>
+</CardGroup>

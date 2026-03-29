@@ -1,0 +1,58 @@
+---
+title: "Installation"
+description: "Install MeshUtility via pip. The wheel includes pre-built C++ extensions — no compiler required."
+---
+
+## Install from PyPI
+
+The recommended way to install MeshUtility is via pip. The published wheel includes pre-compiled C++ extensions (`pygeodesic`, `pyisocurve`, `pyremesh`, `pyshapeop`), so you do not need a C++ compiler or any build tools.
+
+<Steps>
+  <Step title="Install MeshUtility">
+    ```bash
+    pip install meshutility==0.0.2
+    ```
+  </Step>
+  <Step title="Verify the installation">
+    Open a Python interpreter and import the library:
+
+    ```python
+    import meshutility as mu
+    print(dir(mu))
+    ```
+
+    You should see the top-level names including `IsoCurve`, `pygeodesic`, `pyremesh`, `pyisocurve`, and `pyshapeop`.
+  </Step>
+</Steps>
+
+## Python dependencies
+
+pip resolves and installs all required dependencies automatically. The full list is:
+
+| Package | Purpose |
+|---|---|
+| `numpy` | Array representation for vertices, faces, and scalar fields |
+| `scipy` | Spatial utilities and numerical routines |
+| `networkx` | Graph representation for `ff_graph` and `vv_graph` |
+| `matplotlib` | Colormap generation for `colormap_vertex_color` |
+| `openmesh` | Mesh I/O and half-edge data structure |
+
+## Optional: meshplot for Jupyter notebooks
+
+If you want to visualize meshes interactively inside a Jupyter notebook, install [meshplot](https://skoch9.github.io/meshplot/) using conda:
+
+```bash
+conda install -c conda-forge meshplot
+```
+
+<Note>
+  meshplot is not required for any of MeshUtility's core features. It is only needed if you want to render meshes inside a Jupyter notebook environment.
+</Note>
+
+## Building from source
+
+If you need to target a platform not covered by the published wheel, or want to modify the C++ extensions, you can build MeshUtility from source.
+
+<Card title="Building from source" icon="hammer" href="/building/overview">
+  Step-by-step instructions for cloning, configuring, and building the C++ extensions
+</Card>

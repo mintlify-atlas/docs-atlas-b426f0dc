@@ -1,0 +1,106 @@
+---
+title: "IsoCurve"
+description: "Extract isocurves from a scalar field defined on a triangular mesh."
+---
+
+## Class
+
+```python
+from meshutility import IsoCurve
+
+iso = IsoCurve(points, faces, field)
+```
+
+`IsoCurve` extracts level-set curves (isocurves) from a scalar field defined on the vertices of a triangle mesh. Construct an instance once, then call `.extract()` for each desired level value.
+
+## Constructor
+
+```python
+IsoCurve(points, faces, field)
+```
+
+### Parameters
+
+<ParamField path="points" type="numpy.array" required>
+  Mesh vertex coordinates. Shape `(m, 3)`, dtype `float`.
+</ParamField>
+
+<ParamField path="faces" type="numpy.array" required>
+  Mesh face indices. Shape `(n, 3)`, dtype `int`.
+</ParamField>
+
+<ParamField path="field" type="numpy.array" required>
+  Scalar field values at each vertex. Shape `(m,)`, dtype `float`. Must have the same length as `points`.
+</ParamField>
+
+---
+
+## Method: `extract`
+
+```python
+pts, on_edge, ratio, curve_all = iso.extract(val, eqlTol=1e-6)
+```
+
+Extracts the isocurve at scalar value `val`.
+
+### Parameters
+
+<ParamField path="val" type="float" required>
+  The scalar value at which to extract the isocurve.
+</ParamField>
+
+<ParamField path="eqlTol" type="float" default="1e-6">
+  Tolerance for detecting whether a mesh vertex lies exactly on the isocurve. A vertex `v` is considered on the curve if `|field[v] - val| < eqlTol`.
+</ParamField>
+
+### Return value
+
+<ResponseField name="pts" type="numpy.array">
+  3D coordinates of all isocurve sample points. Shape `(k, 3)`.
+</ResponseField>
+
+<ResponseField name="on_edge" type="numpy.array">
+  For each isocurve point, the two vertex indices of the mesh edge it lies on. Shape `(k, 2)`, dtype `int`. For points that coincide with a mesh vertex, both entries are the same vertex index.
+</ResponseField>
+
+<ResponseField name="ratio" type="numpy.array">
+  Interpolation ratio along the edge for each isocurve point. Shape `(k,)`. A ratio of `0.0` means the point is at the `on_edge[i, 0]` vertex; `1.0` means it is at the `on_edge[i, 1]` vertex.
+</ResponseField>
+
+<ResponseField name="curve_all" type="list[list[int]]">
+  Topology of the extracted curves. Each entry is a list of indices into `pts` forming one connected isocurve. A closed curve has its first index repeated at the end.
+</ResponseField>
+
+## Example
+
+```python
+import numpy as np
+import meshutility as mu
+import openmesh as om
+from meshutility import IsoCurve
+
+# Load mesh
+mesh = om.read_trimesh("sphere.obj")
+V = mesh.points()
+F = mesh.face_vertex_indices()
+
+# Define a scalar field (e.g. z-coordinate)
+field = V[:, 2]
+
+# Create extractor
+iso = IsoCurve(V, F, field)
+
+# Extract the isocurve at z = 0.5
+pts, on_edge, ratio, curve_all = iso.extract(0.5)
+
+print(f"Isocurve has {len(curve_all)} connected component(s)")
+for i, curve in enumerate(curve_all):
+    print(f"  Component {i}: {len(curve)} points")
+
+# Write isocurve to file
+mu.write_obj_lines("isocurve.obj", pts, curve_all)
+```
+
+<Note>
+  If an entire triangle lies on the isocurve (all three vertices equal `val` within tolerance), a warning is printed and that face is skipped.
+</Note>

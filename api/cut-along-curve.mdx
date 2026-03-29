@@ -1,0 +1,70 @@
+---
+title: "cut_along_curve"
+description: "Cut a triangle mesh along a curve defined by an ordered sequence of vertex indices."
+---
+
+## Function signature
+
+```python
+cut_along_curve(V, F, curve_index, method='igl')
+```
+
+Cuts a triangle mesh along a curve specified as an ordered list of vertex indices. The mesh topology is updated so that each side of the cut is separated, duplicating vertices along the seam.
+
+## Parameters
+
+<ParamField path="V" type="numpy.array" required>
+  Vertex coordinate array of shape `(n, 3)`.
+</ParamField>
+
+<ParamField path="F" type="numpy.array" required>
+  Face index array of shape `(m, 3)`.
+</ParamField>
+
+<ParamField path="curve_index" type="list[int]" required>
+  Ordered list of vertex indices defining the cut curve. Consecutive entries must share an edge in the mesh. To cut along a closed loop, repeat the first vertex at the end.
+</ParamField>
+
+<ParamField path="method" type="str" default="'igl'">
+  Cut algorithm to use. `'igl'` uses libigl's `cut_mesh` implementation. Any other value falls back to the internal MeshUtility implementation.
+</ParamField>
+
+## Return value
+
+<ResponseField name="mesh" type="openmesh.TriMesh">
+  The cut mesh. Vertices along the seam are duplicated, so each side of the cut has its own set of vertices.
+</ResponseField>
+
+<ResponseField name="index" type="list[int]">
+  New vertex indices corresponding to the input `curve_index` on one side of the cut. Use these to identify the seam vertices after cutting.
+</ResponseField>
+
+## Example
+
+```python
+import numpy as np
+import meshutility as mu
+import openmesh as om
+
+input_mesh = om.read_trimesh("plane.obj")
+V = input_mesh.points()
+F = input_mesh.face_vertex_indices()
+
+# Cut along a path from vertex 0 to vertex 42
+curve = [0, 5, 12, 27, 42]
+mesh, new_curve = mu.cut_along_curve(V, F, curve)
+
+# Access the resulting geometry
+V_cut = mesh.points()
+F_cut = mesh.face_vertex_indices()
+
+print("New vertex indices along seam:", new_curve)
+```
+
+<Note>
+  Curve endpoints that lie on the mesh boundary are not duplicated. Only interior endpoints produce duplicate vertices.
+</Note>
+
+<Warning>
+  Interior vertices of the curve (neither the first nor the last) must not already lie on the mesh boundary. If they do, split the curve into sub-curves that each avoid this condition.
+</Warning>
